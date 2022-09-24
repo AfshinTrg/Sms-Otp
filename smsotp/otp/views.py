@@ -5,6 +5,7 @@ import random
 from .models import OtpCode
 from django.contrib import messages
 from .utils import send_otp_code
+from datetime import datetime, timedelta
 
 
 class HomeView(View):
@@ -40,16 +41,22 @@ class VerifyCode(View):
     def post(self, request):
         user_session = request.session['phone_info']
         code_instance = OtpCode.objects.get(phone_number=user_session['phone_number'])
-        form = VerifyCodeForm(request.POST)
-        if form.is_valid():
-            cd = form.cleaned_data
-            if cd['code'] == code_instance.code:
-                messages.success(request, 'Your code is correct', 'success')
-                code_instance.delete()
-                return redirect('otp:home')
-            else:
-                messages.error(request, 'this code is wrong', 'danger')
-                return redirect('otp:verify_code')
+        expired_time = code_instance.created + timedelta(minutes=3)
+        if expired_time > datetime.now():
+            form = VerifyCodeForm(request.POST)
+            if form.is_valid():
+                cd = form.cleaned_data
+                if cd['code'] == code_instance.code:
+                    messages.success(request, 'Your code is correct', 'success')
+                    code_instance.delete()
+                    return redirect('otp:home')
+                else:
+                    messages.error(request, 'this code is wrong', 'danger')
+                    return redirect('otp:verify_code')
+        else:
+            code_instance.delete()
+            messages.error(request, 'Your time expired, please try again', 'danger')
+            return redirect('otp:register_number')
 
 
 
